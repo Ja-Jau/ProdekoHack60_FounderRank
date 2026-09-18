@@ -13,16 +13,16 @@ import {
   Sparkles,
   Filter,
   Calendar,
-  Linkedin,
-  MessageSquare
+  MessageSquare,
+  User
 } from "lucide-react";
 
 // --- TYPES & DEFAULTS ---
 interface QuestionnaireSettings {
   stages: string[];
   minTraction: string;
-  coreSectors: string; // Changed to string for text input
-  excludedSectors: string; // Changed to string for text input
+  coreSectors: string; // Text input for bias
+  excludedSectors: string; // Text input for auto-flag
   geographies: string[];
   founderArchetypes: string[];
   benchmarkCompanies: string;
@@ -111,18 +111,18 @@ export default function SlushTriageDashboard() {
       try {
         const parsed = JSON.parse(saved);
 
-        // Handle migration from previous array-based sectors to string
+        // Handle migration from previous array-based sectors to string format
         if (Array.isArray(parsed.coreSectors)) parsed.coreSectors = parsed.coreSectors.join(", ");
         if (Array.isArray(parsed.excludedSectors)) parsed.excludedSectors = parsed.excludedSectors.join(", ");
 
-        // CRITICAL BUG FIX: Merge parsed data with defaultCriteria to ensure new keys exist
-        const mergedSettings = { ...defaultCriteria, ...parsed };
+        // CRITICAL BUG FIX: Deep merge parsed data with defaultCriteria to ensure new keys exist
+        const mergedSettings: QuestionnaireSettings = { ...defaultCriteria, ...parsed };
 
-        // Extra safeguard: Ensure array properties are actually arrays
-        Object.keys(defaultCriteria).forEach((key) => {
-          const k = key as keyof QuestionnaireSettings;
-          if (Array.isArray(defaultCriteria[k]) && !Array.isArray(mergedSettings[k])) {
-            mergedSettings[k] = defaultCriteria[k] as any;
+        // Extra safeguard: Ensure array properties are actually arrays to prevent .includes() errors
+        const arrayFields: (keyof QuestionnaireSettings)[] = ["stages", "geographies", "founderArchetypes"];
+        arrayFields.forEach((field) => {
+          if (!Array.isArray(mergedSettings[field])) {
+            (mergedSettings as any)[field] = defaultCriteria[field];
           }
         });
 
@@ -167,8 +167,17 @@ export default function SlushTriageDashboard() {
     setTempSettings({ ...tempSettings, [key]: updated });
   };
 
+  // Inline SVG for LinkedIn to completely bypass the lucide-react export error
+  const LinkedInIcon = ({ className = "" }: { className?: string }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
+        <rect x="2" y="9" width="4" height="12"></rect>
+        <circle cx="4" cy="4" r="2"></circle>
+      </svg>
+  );
+
   return (
-      <div className="flex h-screen bg-black font-sans text-zinc-100 selection:bg-green-500 selection:text-black overflow-hidden">
+      <div className="flex h-screen bg-black font-sans text-zinc-100 selection:bg-green-500 selection:text-black">
 
         {/* LEFT PANEL: INBOX / LIST */}
         <div className="w-full md:w-1/3 lg:w-[420px] border-r border-zinc-800 bg-zinc-950 flex flex-col z-20 shadow-[10px_0_30px_rgba(0,0,0,0.8)]">
@@ -253,14 +262,14 @@ export default function SlushTriageDashboard() {
                   <div className="flex-1">
                     <h2 className="text-5xl font-black text-white tracking-tighter mb-4 uppercase leading-none">{selectedLead.startup.name}</h2>
                     <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-400 font-bold uppercase tracking-widest mb-5">
-                      <span className="flex items-center text-zinc-300"><ExternalLink size={14} className="mr-1.5" /> {selectedLead.contact.full_name}</span>
+                      <span className="flex items-center text-zinc-300"><User size={14} className="mr-1.5" /> {selectedLead.contact.full_name}</span>
                       <span className="text-zinc-700">•</span>
                       <span className="bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-sm text-zinc-300">{selectedLead.startup.stage}</span>
                       <span className="text-zinc-700">•</span>
                       <span className="bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-sm text-zinc-300">{selectedLead.startup.market_vertical}</span>
                     </div>
-                    <div className="flex items-center text-sm font-medium text-green-400 bg-green-950/30 border border-green-900/50 inline-flex px-4 py-2 rounded-sm">
-                      <Calendar size={16} className="mr-2" />
+                    <div className="flex items-center text-sm font-medium text-green-400 bg-green-950/30 border border-green-900/50 inline-flex px-4 py-2 rounded-sm shadow-[0_0_15px_rgba(34,197,94,0.1)]">
+                      <Calendar size={16} className="mr-2 text-green-500" />
                       Proposed Time: {selectedLead.proposed_time}
                     </div>
                   </div>
@@ -273,7 +282,7 @@ export default function SlushTriageDashboard() {
                         rel="noopener noreferrer"
                         className="flex items-center px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-sm text-zinc-300 hover:bg-zinc-800 hover:text-white hover:border-zinc-500 transition-all font-bold uppercase tracking-widest text-[10px]"
                     >
-                      <Linkedin size={16} className="mr-2" /> LinkedIn
+                      <LinkedInIcon className="mr-2" /> LinkedIn
                     </a>
                     <a
                         href={selectedLead.slush_url}
@@ -294,7 +303,7 @@ export default function SlushTriageDashboard() {
                     </button>
                     <button
                         onClick={() => handleAction(selectedLead.id, "accepted")}
-                        className="flex items-center px-6 py-3 bg-green-500 text-black rounded-sm hover:bg-green-400 transition-all font-black uppercase tracking-widest text-[11px] shadow-[0_0_20px_rgba(34,197,94,0.3)]"
+                        className="flex items-center px-6 py-3 bg-green-500 text-black rounded-sm hover:bg-green-400 transition-all font-black uppercase tracking-widest text-[11px] shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:shadow-[0_0_30px_rgba(34,197,94,0.5)]"
                     >
                       <Check size={16} className="mr-2" /> Accept Meeting
                     </button>

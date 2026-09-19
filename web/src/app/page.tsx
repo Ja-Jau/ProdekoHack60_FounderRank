@@ -56,8 +56,8 @@ const mockLeads = [
     proposed_time: "Nov 30, 14:00 - 14:15",
     linkedin_url: "https://linkedin.com/in/martalindqvist",
     slush_url: "https://platform.slush.org/meetings/4412",
-    linkedin_analysis: "Marta possesses a strong technical pedigree, having previously served as a Staff Engineer at Spotify for 4 years where she scaled edge microservices. Her educational background includes an M.Sc. in Computer Science from KTH Royal Institute of Technology. The co-founding team heavily indexes on engineering talent with direct experience building in the target market.",
-    verdict: "High Priority. Direct thesis match with exceptional technical founder pedigree and proven capability in the B2B SaaS developer tools space.",
+    linkedin_analysis: "Marta previously served as a Staff Engineer at Spotify scaling edge microservices and holds an M.Sc. in Computer Science.",
+    verdict: "High Priority",
     pitch: "Hi! We saw your focus on developer platforms. We're an ex-Spotify engineering team scaling FlowLog past $25k MRR. Would love to grab 15 mins at Slush to share our seed deck."
   },
   {
@@ -69,8 +69,8 @@ const mockLeads = [
     proposed_time: "Dec 1, 10:30 - 10:45",
     linkedin_url: "https://linkedin.com/in/johannesv",
     slush_url: "https://platform.slush.org/meetings/4413",
-    linkedin_analysis: "Johannes has a background in digital marketing and agency consulting. Previous roles include Head of Marketing at a mid-sized retail brand. No technical co-founders are listed on the immediate team. Experience is heavily concentrated in D2C and consumer retail rather than enterprise software.",
-    verdict: "Pass. Significant thesis mismatch. D2C / E-commerce falls into the excluded verticals, and the Series A stage is outside the core Pre-Seed/Seed mandate.",
+    linkedin_analysis: "Johannes has a background in digital marketing and consumer retail consulting, with no immediate technical co-founders listed.",
+    verdict: "Hard Pass",
     pitch: "Looking to connect with investors for our Series A expansion into the UK market."
   }
 ];
@@ -88,7 +88,7 @@ export default function SlushTriageDashboard() {
 
   // Robust localStorage parsing with deep-merge fallback to prevent crashes
   useEffect(() => {
-    const saved = localStorage.getItem("vc_slush_criteria_v2");
+    const saved = localStorage.getItem("vc_slush_criteria_v3");
     if (!saved) {
       setIsFirstTime(true);
       setIsModalOpen(true);
@@ -97,7 +97,6 @@ export default function SlushTriageDashboard() {
         const parsed = JSON.parse(saved);
         const merged = { ...defaultCriteria, ...parsed };
 
-        // Ensure arrays remain arrays
         if (!Array.isArray(merged.stages)) merged.stages = defaultCriteria.stages;
         if (!Array.isArray(merged.geographies)) merged.geographies = defaultCriteria.geographies;
         if (!Array.isArray(merged.founderArchetypes)) merged.founderArchetypes = defaultCriteria.founderArchetypes;
@@ -120,7 +119,7 @@ export default function SlushTriageDashboard() {
 
   const handleSaveSettings = () => {
     setSettings(tempSettings);
-    localStorage.setItem("vc_slush_criteria_v2", JSON.stringify(tempSettings));
+    localStorage.setItem("vc_slush_criteria_v3", JSON.stringify(tempSettings));
     setIsModalOpen(false);
 
     if (!isFirstTime) {
@@ -142,14 +141,14 @@ export default function SlushTriageDashboard() {
   };
 
   return (
-      <div className="flex h-screen bg-black font-sans text-zinc-100 selection:bg-lime-500 selection:text-black">
+      <div className="flex h-screen bg-black font-sans text-zinc-100 selection:bg-rose-500 selection:text-white">
 
         {/* LEFT PANEL: INBOX / LIST */}
-        <div className="w-1/3 border-r border-zinc-800 bg-zinc-950 flex flex-col z-20">
-          <div className="p-5 border-b border-zinc-800 flex justify-between items-center bg-zinc-950 sticky top-0">
+        <div className="w-1/3 border-r border-zinc-900 bg-black flex flex-col z-20">
+          <div className="p-5 border-b border-zinc-900 flex justify-between items-center bg-black sticky top-0">
             <div>
-              <h1 className="text-2xl font-black tracking-tighter uppercase text-white">Slush<span className="text-lime-400">_</span>Triage</h1>
-              <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">Live Deal Flow</p>
+              <h1 className="text-2xl font-black tracking-tighter uppercase text-white">Slush<span className="text-rose-500">_</span>Triage</h1>
+              <p className="text-xs text-zinc-600 uppercase tracking-widest mt-1">Live Deal Flow</p>
             </div>
             <div className="flex items-center space-x-3">
               <button
@@ -157,19 +156,19 @@ export default function SlushTriageDashboard() {
                     setTempSettings(settings);
                     setIsModalOpen(true);
                   }}
-                  className="p-2 border border-zinc-800 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-lime-400 transition-colors"
+                  className="p-2 border border-zinc-800 rounded-md hover:bg-zinc-900 text-zinc-400 hover:text-rose-500 transition-colors"
                   title="Edit Scoring Thesis"
               >
                 <SlidersHorizontal size={18} />
               </button>
-              <span className="bg-lime-500/10 text-lime-400 border border-lime-500/20 text-xs font-bold px-2.5 py-1 rounded-sm uppercase tracking-wide">
+              <span className="bg-rose-500/10 text-rose-500 border border-rose-500/20 text-xs font-bold px-2.5 py-1 rounded-sm uppercase tracking-wide">
               {leads.filter(l => l.status === 'pending').length} Pending
             </span>
             </div>
           </div>
 
           {isReranking && (
-              <div className="bg-lime-950/40 border-b border-lime-900/50 p-3 flex items-center text-xs text-lime-400 uppercase tracking-wider font-bold">
+              <div className="bg-emerald-950/20 border-b border-emerald-900/30 p-3 flex items-center text-xs text-emerald-400 uppercase tracking-wider font-bold">
                 <RotateCw size={14} className="animate-spin mr-2 flex-shrink-0" />
                 <span>Recalculating Match Scores...</span>
               </div>
@@ -182,24 +181,24 @@ export default function SlushTriageDashboard() {
                     onClick={() => setSelectedLeadId(lead.id)}
                     className={`p-5 border-b border-zinc-900 cursor-pointer transition-all duration-200 ${
                         selectedLeadId === lead.id
-                            ? "bg-zinc-900 border-l-4 border-l-lime-400"
-                            : "hover:bg-zinc-900/50 border-l-4 border-l-transparent"
+                            ? "bg-zinc-900/50 border-l-4 border-l-rose-500"
+                            : "hover:bg-zinc-900/30 border-l-4 border-l-transparent"
                     }`}
                 >
                   <div className="flex justify-between items-start mb-1.5">
                     <h3 className="font-bold text-lg tracking-tight">{lead.startup.name}</h3>
                     <span className={`text-sm font-black tracking-tighter flex items-center ${
-                        lead.match_score >= 70 ? "text-lime-400" : lead.match_score >= 50 ? "text-yellow-400" : "text-rose-500"
+                        lead.match_score >= 70 ? "text-emerald-400" : lead.match_score >= 50 ? "text-yellow-400" : "text-rose-500"
                     }`}>
                   {lead.match_score} <span className="text-zinc-600 text-xs ml-0.5">/100</span>
                 </span>
                   </div>
-                  <p className="text-sm text-zinc-400 font-medium">{lead.contact.full_name} <span className="text-zinc-600 mx-1">•</span> {lead.startup.stage}</p>
+                  <p className="text-sm text-zinc-500 font-medium">{lead.contact.full_name} <span className="text-zinc-700 mx-1">•</span> {lead.startup.stage}</p>
 
                   {lead.status !== 'pending' && (
                       <div className="mt-3 flex">
                   <span className={`text-xs px-2 py-0.5 rounded-sm font-bold uppercase tracking-wider ${
-                      lead.status === 'accepted' ? "bg-lime-500/20 text-lime-400 border border-lime-500/30" : "bg-zinc-800 text-zinc-500"
+                      lead.status === 'accepted' ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-zinc-900 text-zinc-600 border border-zinc-800"
                   }`}>
                     {lead.status === 'accepted' ? 'Meeting Accepted' : 'Passed'}
                   </span>
@@ -222,26 +221,26 @@ export default function SlushTriageDashboard() {
                   <div>
                     <h2 className="text-4xl font-black text-white tracking-tighter mb-3 uppercase">{selectedLead.startup.name}</h2>
                     <div className="flex items-center space-x-3 text-sm text-zinc-400 font-medium tracking-wide">
-                      <a href={selectedLead.linkedin_url} target="_blank" rel="noreferrer" className="flex items-center hover:text-lime-400 cursor-pointer transition-colors">
+                      <a href={selectedLead.linkedin_url} target="_blank" rel="noreferrer" className="flex items-center hover:text-rose-400 cursor-pointer transition-colors">
                         <ExternalLink size={16} className="mr-1.5" /> {selectedLead.contact.full_name}
                       </a>
                       <span className="text-zinc-700">•</span>
-                      <span className="bg-zinc-900 px-2 py-1 rounded text-zinc-300">{selectedLead.startup.stage}</span>
+                      <span className="bg-zinc-900 px-2 py-1 rounded text-zinc-300 border border-zinc-800">{selectedLead.startup.stage}</span>
                       <span className="text-zinc-700">•</span>
-                      <span className="bg-zinc-900 px-2 py-1 rounded text-zinc-300">{selectedLead.startup.market_vertical}</span>
+                      <span className="bg-zinc-900 px-2 py-1 rounded text-zinc-300 border border-zinc-800">{selectedLead.startup.market_vertical}</span>
                     </div>
                   </div>
 
                   <div className="flex space-x-4">
                     <button
                         onClick={() => handleAction(selectedLead.id, "declined")}
-                        className="flex items-center px-5 py-2.5 border border-zinc-700 rounded-sm text-zinc-300 hover:bg-zinc-900 hover:text-white hover:border-zinc-500 transition-all font-bold uppercase tracking-wider text-sm"
+                        className="flex items-center px-5 py-2.5 bg-black border border-zinc-700 rounded-sm text-zinc-300 hover:border-rose-500 hover:text-rose-500 transition-all font-bold uppercase tracking-wider text-sm"
                     >
                       <X size={18} className="mr-2" /> Pass
                     </button>
                     <button
                         onClick={() => handleAction(selectedLead.id, "accepted")}
-                        className="flex items-center px-5 py-2.5 bg-lime-500 text-black rounded-sm hover:bg-lime-400 transition-all font-bold uppercase tracking-wider text-sm shadow-[0_0_15px_rgba(132,204,22,0.4)]"
+                        className="flex items-center px-5 py-2.5 bg-emerald-500 text-black rounded-sm hover:bg-emerald-400 transition-all font-bold uppercase tracking-wider text-sm shadow-[0_0_15px_rgba(16,185,129,0.3)]"
                     >
                       <Check size={18} className="mr-2" /> Accept
                     </button>
@@ -251,7 +250,7 @@ export default function SlushTriageDashboard() {
                 {/* Quick Actions & Info Bar */}
                 <div className="flex items-center space-x-4 mb-8">
                   <div className="flex items-center bg-zinc-900/50 border border-zinc-800 rounded-sm px-4 py-2 text-sm font-medium text-zinc-300">
-                    <Calendar size={16} className="text-lime-400 mr-2" />
+                    <Calendar size={16} className="text-rose-500 mr-2" />
                     {selectedLead.proposed_time}
                   </div>
 
@@ -267,44 +266,64 @@ export default function SlushTriageDashboard() {
                 </div>
 
                 {/* AI Synthesis & LinkedIn Analysis Card */}
-                <div className="bg-zinc-900/80 backdrop-blur-md rounded-sm border border-zinc-800 overflow-hidden mb-8 shadow-2xl">
+                <div className="bg-zinc-900/30 backdrop-blur-md rounded-sm border border-zinc-800 overflow-hidden mb-8">
                   <div className="bg-zinc-950 px-6 py-4 flex justify-between items-center border-b border-zinc-800">
                     <h3 className="text-white font-bold uppercase tracking-widest flex items-center text-sm">
-                      <TrendingUp size={18} className="mr-2 text-lime-400" />
+                      <TrendingUp size={18} className="mr-2 text-rose-500" />
                       AI Synthesis
                     </h3>
-                    <span className="text-lime-400 text-2xl font-black tracking-tighter">
+                    <span className="text-white text-2xl font-black tracking-tighter">
                   {selectedLead.match_score} <span className="text-zinc-600 text-sm font-normal tracking-normal">/100</span>
                 </span>
                   </div>
 
                   <div className="p-6 space-y-6">
+                    {/* 1. Neutral LinkedIn Analysis */}
                     <div>
-                      <h4 className="text-xs font-black text-lime-400 uppercase tracking-widest mb-3 flex items-center">
+                      <h4 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 flex items-center">
                         <UserSearch size={16} className="mr-2" /> LinkedIn Analysis
                       </h4>
-                      <p className="text-zinc-300 bg-black/50 p-4 rounded-sm border border-zinc-800 text-sm font-medium leading-relaxed">
+                      <p className="text-zinc-400 bg-zinc-900/50 p-4 rounded-sm border border-zinc-800/80 text-sm font-medium leading-relaxed">
                         {selectedLead.linkedin_analysis}
                       </p>
                     </div>
 
+                    {/* 2. Bold Two-Word Verdict */}
                     <div>
-                      <h4 className="text-xs font-black text-white uppercase tracking-widest mb-3 flex items-center">
-                        <Check size={16} className="text-lime-400 mr-2" /> Verdict
+                      <h4 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 flex items-center">
+                        Verdict
                       </h4>
-                      <p className="text-zinc-300 bg-lime-950/10 p-4 rounded-sm border border-lime-900/30 text-sm font-medium leading-relaxed">
-                        {selectedLead.verdict}
-                      </p>
+                      <div className="flex items-center space-x-4 bg-black p-4 rounded-sm border border-zinc-800/80 w-max">
+                        {selectedLead.match_score >= 50 ? (
+                            <>
+                              <div className="bg-emerald-500/10 p-2 rounded-full border border-emerald-500/20">
+                                <Check className="text-emerald-500" size={24} strokeWidth={3} />
+                              </div>
+                              <span className="text-xl font-black uppercase tracking-widest text-emerald-400 pr-2">
+                          {selectedLead.verdict}
+                        </span>
+                            </>
+                        ) : (
+                            <>
+                              <div className="bg-rose-500/10 p-2 rounded-full border border-rose-500/20">
+                                <X className="text-rose-500" size={24} strokeWidth={3} />
+                              </div>
+                              <span className="text-xl font-black uppercase tracking-widest text-rose-500 pr-2">
+                          {selectedLead.verdict}
+                        </span>
+                            </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Raw Pitch Context */}
-                <div className="bg-zinc-900/50 rounded-sm border border-zinc-800 p-6">
-                  <h4 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4 flex items-center">
-                    <Clock size={16} className="text-zinc-600 mr-2" /> Raw Slush Platform Inbound
+                {/* Raw Pitch Context (Moved to bottom) */}
+                <div className="bg-zinc-900/20 rounded-sm border border-zinc-800/50 p-6">
+                  <h4 className="text-xs font-black text-zinc-600 uppercase tracking-widest mb-4 flex items-center">
+                    <Clock size={16} className="text-zinc-700 mr-2" /> Raw Slush Inbound Pitch
                   </h4>
-                  <p className="text-zinc-300 font-serif italic border-l-2 border-lime-400 pl-5 py-2 text-lg leading-relaxed">
+                  <p className="text-zinc-400 font-serif italic border-l-2 border-zinc-700 pl-5 py-2 text-lg leading-relaxed">
                     "{selectedLead.pitch}"
                   </p>
                 </div>
@@ -323,7 +342,7 @@ export default function SlushTriageDashboard() {
 
                 <div className="flex justify-between items-center mb-8 border-b border-zinc-800 pb-4">
                   <div className="flex items-center space-x-3">
-                    <Sparkles className="text-lime-400" size={24} />
+                    <Sparkles className="text-rose-500" size={24} />
                     <h2 className="text-2xl font-black text-white uppercase tracking-tight">
                       {isFirstTime ? "Initialize Investment Thesis" : "Reconfigure Thesis"}
                     </h2>
@@ -336,8 +355,8 @@ export default function SlushTriageDashboard() {
                 </div>
 
                 {!isFirstTime && (
-                    <div className="bg-amber-950/30 border border-amber-900/50 rounded-sm p-4 mb-8 flex items-start text-xs text-amber-200 font-medium">
-                      <AlertTriangle size={16} className="mr-3 flex-shrink-0 text-amber-500 mt-0.5" />
+                    <div className="bg-rose-950/10 border border-rose-900/30 rounded-sm p-4 mb-8 flex items-start text-xs text-rose-300 font-medium">
+                      <AlertTriangle size={16} className="mr-3 flex-shrink-0 text-rose-500 mt-0.5" />
                       <span className="leading-relaxed">
                   <strong className="text-white uppercase tracking-wider block mb-1">System Warning</strong>
                   Modifying the thesis will trigger a bulk re-evaluation of all pending requests. Processing via Apify and LLM may take a few moments.
@@ -347,7 +366,7 @@ export default function SlushTriageDashboard() {
 
                 <div className="space-y-10 text-sm">
 
-                  {/* --- NEW SECTION: PRE-FILTERS --- */}
+                  {/* --- PRE-FILTERS --- */}
                   <div className="p-6 bg-black border border-zinc-800 rounded-sm">
                     <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-6 flex items-center">
                       <Filter size={16} className="mr-2" /> Hard Pre-Filters (Bypass LLM)
@@ -368,8 +387,8 @@ export default function SlushTriageDashboard() {
                                   onClick={() => toggleArrayItem("stages", stage)}
                                   className={`px-4 py-2 rounded-sm text-xs font-bold uppercase tracking-wider transition-all ${
                                       active
-                                          ? "bg-lime-500 text-black shadow-[0_0_10px_rgba(132,204,22,0.3)]"
-                                          : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                                          ? "bg-rose-600 text-white shadow-[0_0_10px_rgba(225,29,72,0.3)]"
+                                          : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:bg-zinc-800 hover:text-white"
                                   }`}
                               >
                                 {stage}
@@ -379,7 +398,7 @@ export default function SlushTriageDashboard() {
                       </div>
                     </div>
 
-                    {/* Geographies (Moved to Pre-Filter) */}
+                    {/* Geographies */}
                     <div>
                       <label className="font-bold text-white uppercase tracking-wide block mb-3">
                         Geographic Mandate
@@ -394,8 +413,8 @@ export default function SlushTriageDashboard() {
                                   onClick={() => toggleArrayItem("geographies", geo)}
                                   className={`px-4 py-2 rounded-sm text-xs font-bold uppercase tracking-wider transition-all ${
                                       active
-                                          ? "bg-lime-500 text-black shadow-[0_0_10px_rgba(132,204,22,0.3)]"
-                                          : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                                          ? "bg-rose-600 text-white shadow-[0_0_10px_rgba(225,29,72,0.3)]"
+                                          : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:bg-zinc-800 hover:text-white"
                                   }`}
                               >
                                 {geo}
@@ -406,15 +425,15 @@ export default function SlushTriageDashboard() {
                     </div>
                   </div>
 
-                  {/* --- EXISTING LLM CRITERIA --- */}
+                  {/* --- LLM CRITERIA --- */}
                   <div className="pt-4 border-t border-zinc-800/50">
-                    <h3 className="text-xs font-black text-lime-400 uppercase tracking-widest mb-6 flex items-center">
+                    <h3 className="text-xs font-black text-emerald-400 uppercase tracking-widest mb-6 flex items-center">
                       <TrendingUp size={16} className="mr-2" /> LLM Scoring Weights
                     </h3>
 
                     <div className="space-y-8">
 
-                      {/* Core Focus Verticals (Text Input) */}
+                      {/* Core Focus Verticals */}
                       <div>
                         <label className="font-bold text-white uppercase tracking-wide block mb-2">
                           Core Verticals (Positive Score Bias)
@@ -427,11 +446,11 @@ export default function SlushTriageDashboard() {
                             value={tempSettings.coreSectors}
                             onChange={(e) => setTempSettings({ ...tempSettings, coreSectors: e.target.value })}
                             placeholder="E.G. B2B SAAS, DEVELOPER TOOLS, DEEPTECH"
-                            className="w-full px-4 py-3 bg-black border border-zinc-800 text-white placeholder-zinc-700 text-sm focus:outline-none focus:border-lime-500 font-medium uppercase tracking-wider"
+                            className="w-full px-4 py-3 bg-black border border-zinc-800 text-white placeholder-zinc-700 text-sm focus:outline-none focus:border-emerald-500 font-medium uppercase tracking-wider transition-colors"
                         />
                       </div>
 
-                      {/* Disqualified Verticals (Text Input) */}
+                      {/* Disqualified Verticals */}
                       <div>
                         <label className="font-bold text-white uppercase tracking-wide block mb-2">
                           Excluded Sectors (Auto-Flag / Low Score)
@@ -444,7 +463,7 @@ export default function SlushTriageDashboard() {
                             value={tempSettings.excludedSectors}
                             onChange={(e) => setTempSettings({ ...tempSettings, excludedSectors: e.target.value })}
                             placeholder="E.G. CRYPTO, D2C E-COMMERCE, GAMBLING"
-                            className="w-full px-4 py-3 bg-black border border-zinc-800 text-white placeholder-zinc-700 text-sm focus:outline-none focus:border-lime-500 font-medium uppercase tracking-wider"
+                            className="w-full px-4 py-3 bg-black border border-zinc-800 text-white placeholder-zinc-700 text-sm focus:outline-none focus:border-rose-500 font-medium uppercase tracking-wider transition-colors"
                         />
                       </div>
 
@@ -468,7 +487,7 @@ export default function SlushTriageDashboard() {
                                     onClick={() => toggleArrayItem("founderArchetypes", arch.id)}
                                     className={`p-3 text-left text-xs font-bold uppercase tracking-wider transition-all border ${
                                         active
-                                            ? "bg-lime-500/10 border-lime-500/50 text-lime-400"
+                                            ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
                                             : "bg-black border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
                                     }`}
                                 >
@@ -492,7 +511,7 @@ export default function SlushTriageDashboard() {
                             value={tempSettings.benchmarkCompanies}
                             onChange={(e) => setTempSettings({ ...tempSettings, benchmarkCompanies: e.target.value })}
                             placeholder="E.G. FLOWLOG, SUPERMETRICS"
-                            className="w-full px-4 py-3 bg-black border border-zinc-800 text-white placeholder-zinc-700 text-sm focus:outline-none focus:border-lime-500 font-medium uppercase tracking-wider"
+                            className="w-full px-4 py-3 bg-black border border-zinc-800 text-white placeholder-zinc-700 text-sm focus:outline-none focus:border-emerald-500 font-medium uppercase tracking-wider transition-colors"
                         />
                       </div>
                     </div>
@@ -505,7 +524,7 @@ export default function SlushTriageDashboard() {
                       <button
                           type="button"
                           onClick={() => setIsModalOpen(false)}
-                          className="px-6 py-3 border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors"
+                          className="px-6 py-3 border border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors"
                       >
                         Abort
                       </button>
@@ -523,20 +542,19 @@ export default function SlushTriageDashboard() {
             </div>
         )}
 
-        {/* Tailwind global overrides for custom scrollbar */}
         <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: #09090b; 
+          background: #000; 
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #27272a; 
+          background: #18181b; 
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #3f3f46; 
+          background: #27272a; 
         }
       `}} />
       </div>

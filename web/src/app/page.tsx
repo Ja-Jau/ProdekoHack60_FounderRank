@@ -55,7 +55,6 @@ interface QuestionnaireSettings {
   coreSectors: string;
   excludedSectors: string;
   founderArchetypes: string[];
-  benchmarkCompanies: string;
 }
 
 const defaultCriteria: QuestionnaireSettings = {
@@ -63,8 +62,7 @@ const defaultCriteria: QuestionnaireSettings = {
   geographies: ["Nordics & Baltics", "Western Europe / UK"],
   coreSectors: "",
   excludedSectors: "",
-  founderArchetypes: ["technical_depth", "scaleup_alumni"],
-  benchmarkCompanies: ""
+  founderArchetypes: ["technical_depth", "scaleup_alumni"]
 };
 
 export default function SlushTriageDashboard() {
@@ -78,7 +76,7 @@ export default function SlushTriageDashboard() {
   const [settings, setSettings] = useState<QuestionnaireSettings>(defaultCriteria);
   const [tempSettings, setTempSettings] = useState<QuestionnaireSettings>(defaultCriteria);
 
-  // 1. Fetch live settings strictly ONCE
+  // 1. Fetch live settings strictly ONCE (prevents modal from resetting)
   const fetchSettings = async () => {
     const { data: dbSettings, error: settingsErr } = await supabase.from('investor_settings').select('*').eq('id', 1).single();
     if (settingsErr) console.error("Settings Fetch Error:", settingsErr);
@@ -89,8 +87,7 @@ export default function SlushTriageDashboard() {
         geographies: (dbSettings.allowed_regions || []).map((r: string) => DB_TO_UI_GEO[r] || r),
         coreSectors: dbSettings.core_sectors || "",
         excludedSectors: dbSettings.excluded_sectors || "",
-        founderArchetypes: dbSettings.founder_archetypes || [],
-        benchmarkCompanies: dbSettings.benchmark_companies || ""
+        founderArchetypes: dbSettings.founder_archetypes || []
       };
       setSettings(loadedSettings);
       setTempSettings(loadedSettings);
@@ -100,7 +97,7 @@ export default function SlushTriageDashboard() {
     }
   };
 
-  // 2. Fetch profiles repeatedly
+  // 2. Fetch profiles repeatedly without touching settings
   const fetchProfiles = async () => {
     const { data: profilesData, error: profilesErr } = await supabase
         .from('profiles')
@@ -133,7 +130,7 @@ export default function SlushTriageDashboard() {
         };
       });
 
-      // Fallback mock leads if DB is empty
+      // Fallback mock leads if DB is empty for UI demonstration
       if (mappedLeads.length === 0) {
         setLeads([
           {
@@ -169,6 +166,7 @@ export default function SlushTriageDashboard() {
     }
   };
 
+  // Setup Realtime & Poller
   useEffect(() => {
     fetchSettings();
     fetchProfiles();
@@ -190,13 +188,16 @@ export default function SlushTriageDashboard() {
     };
   }, []);
 
+  // Filter ONLY leads that have been scored AND are not declined
   const visibleLeads = leads.filter(l => l.match_score !== null && l.status !== 'declined');
 
+  // Safe selection logic
   let selectedLead = visibleLeads.find((l) => l.id === selectedLeadId);
   if (!selectedLead && visibleLeads.length > 0) {
     selectedLead = visibleLeads[0];
   }
 
+  // Calendar ICS Generator
   const downloadICS = (lead: any) => {
     const icsContent = [
       "BEGIN:VCALENDAR",
@@ -222,11 +223,13 @@ export default function SlushTriageDashboard() {
   };
 
   const handleAction = async (id: string, action: "accepted" | "declined") => {
+    // 1. Instantly generate the calendar event if accepted
     if (action === "accepted") {
       const acceptedLead = leads.find(l => l.id === id);
       if (acceptedLead) downloadICS(acceptedLead);
     }
 
+    // 2. Update UI & Supabase
     setLeads(leads.map(lead => lead.id === id ? { ...lead, status: action } : lead));
     await supabase.from('profiles').update({ status: action }).eq('id', id);
   };
@@ -235,24 +238,26 @@ export default function SlushTriageDashboard() {
     setSettings(tempSettings);
     setIsModalOpen(false);
 
+    // Write to Supabase so Worker can read it
     await supabase.from('investor_settings').upsert({
       id: 1,
       allowed_stages: tempSettings.stages.map(s => UI_TO_DB_STAGE[s] || s),
       allowed_regions: tempSettings.geographies.map(g => UI_TO_DB_GEO[g] || g),
       core_sectors: tempSettings.coreSectors,
       excluded_sectors: tempSettings.excludedSectors,
-      founder_archetypes: tempSettings.founderArchetypes,
-      benchmark_companies: tempSettings.benchmarkCompanies
+      founder_archetypes: tempSettings.founderArchetypes
     });
 
     if (!isFirstTime) {
       setIsReranking(true);
+      // Reset everything back to pending and null scores UNLESS they are already accepted.
       await supabase
           .from('profiles')
           .update({ score: null, verdict: null, reasoning: null, status: 'pending' })
           .neq('status', 'accepted');
 
       await fetchProfiles();
+
       setTimeout(() => setIsReranking(false), 3000);
     } else {
       setIsFirstTime(false);
@@ -654,23 +659,6 @@ export default function SlushTriageDashboard() {
                             );
                           })}
                         </div>
-                      </div>
-
-                      {/* Benchmark Companies */}
-                      <div>
-                        <label className="font-bold text-white uppercase tracking-wide block mb-2">
-                          Dream Portfolio Benchmarks
-                        </label>
-                        <p className="text-xs text-zinc-500 mb-3 uppercase tracking-wider">
-                          Provide 1-2 examples of ideal investments for few-shot LLM grounding:
-                        </p>
-                        <input
-                            type="text"
-                            value={tempSettings.benchmarkCompanies}
-                            onChange={(e) => setTempSettings({ ...tempSettings, benchmarkCompanies: e.target.value })}
-                            placeholder="E.G. FLOWLOG, SUPERMETRICS"
-                            className="w-full px-4 py-3 bg-black border border-zinc-800 text-white placeholder-zinc-700 text-sm focus:outline-none focus:border-emerald-500 font-medium uppercase tracking-wider transition-colors"
-                        />
                       </div>
                     </div>
                   </div>

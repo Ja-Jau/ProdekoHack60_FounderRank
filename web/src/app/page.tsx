@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabase";
 import {
   Check,
   X,
@@ -21,12 +22,30 @@ import {
 
 // --- INLINE ICONS ---
 const LinkedinIcon = ({ size = 24, className = "" }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
-      <rect x="2" y="9" width="4" height="12"></rect>
-      <circle cx="4" cy="4" r="2"></circle>
-    </svg>
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
+    <rect x="2" y="9" width="4" height="12"></rect>
+    <circle cx="4" cy="4" r="2"></circle>
+  </svg>
 );
+
+// --- DB TO UI MAPPINGS ---
+const UI_TO_DB_GEO: Record<string, string> = {
+  "Nordics & Baltics": "nordic_baltic",
+  "Western Europe / UK": "western_europe_uk",
+  "US / North America": "us_na",
+  "Global / Anywhere": "global"
+};
+const DB_TO_UI_GEO = Object.fromEntries(Object.entries(UI_TO_DB_GEO).map(([k, v]) => [v, k]));
+
+const UI_TO_DB_STAGE: Record<string, string> = {
+  "Idea": "idea",
+  "Pre-Seed": "pre_seed",
+  "Seed": "seed",
+  "Series A": "series_a",
+  "Series B+": "series_b_plus"
+};
+const DB_TO_UI_STAGE = Object.fromEntries(Object.entries(UI_TO_DB_STAGE).map(([k, v]) => [v, k]));
 
 // --- TYPES & DEFAULTS ---
 interface QuestionnaireSettings {
@@ -47,38 +66,9 @@ const defaultCriteria: QuestionnaireSettings = {
   benchmarkCompanies: ""
 };
 
-const mockLeads = [
-  {
-    id: "req_slush_4412",
-    contact: { full_name: "Marta Lindqvist", location: "Stockholm, Sweden" },
-    startup: { name: "FlowLog", stage: "Seed", market_vertical: "Developer Tools", raised: "$650k" },
-    match_score: 88,
-    status: "pending",
-    proposed_time: "Nov 30, 14:00 - 14:15",
-    linkedin_url: "https://linkedin.com/in/martalindqvist",
-    slush_url: "https://platform.slush.org/meetings/4412",
-    linkedin_analysis: "Marta previously served as a Staff Engineer at Spotify scaling edge microservices and holds an M.Sc. in Computer Science.",
-    verdict: "High Priority",
-    pitch: "Hi! We saw your focus on developer platforms. We're an ex-Spotify engineering team scaling FlowLog past $25k MRR. Would love to grab 15 mins at Slush to share our seed deck."
-  },
-  {
-    id: "req_slush_4413",
-    contact: { full_name: "Johannes Virtanen", location: "Helsinki, Finland" },
-    startup: { name: "RetailNode", stage: "Series A", market_vertical: "D2C / E-commerce", raised: "$2.1M" },
-    match_score: 34,
-    status: "pending",
-    proposed_time: "Dec 1, 10:30 - 10:45",
-    linkedin_url: "https://linkedin.com/in/johannesv",
-    slush_url: "https://platform.slush.org/meetings/4413",
-    linkedin_analysis: "Johannes has a background in digital marketing and consumer retail consulting, with no immediate technical co-founders listed.",
-    verdict: "Hard Pass",
-    pitch: "Looking to connect with investors for our Series A expansion into the UK market."
-  }
-];
-
 export default function SlushTriageDashboard() {
-  const [leads, setLeads] = useState(mockLeads);
-  const [selectedLeadId, setSelectedLeadId] = useState(mockLeads[0].id);
+  const [leads, setLeads] = useState<any[]>([]);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
 
   // Questionnaire & Settings State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -87,49 +77,143 @@ export default function SlushTriageDashboard() {
   const [settings, setSettings] = useState<QuestionnaireSettings>(defaultCriteria);
   const [tempSettings, setTempSettings] = useState<QuestionnaireSettings>(defaultCriteria);
 
-  // Robust localStorage parsing with deep-merge fallback
+  // Robust Supabase Data Fetching & Real-time Subscription
+  // 1. Setup Realtime + 3-Second Fallback Polling
   useEffect(() => {
-    const saved = localStorage.getItem("vc_slush_criteria_v4");
-    if (!saved) {
+    fetchDashboardData();
+
+    // Realtime WebSocket listener
+    const channel = supabase
+      .channel('realtime-profiles')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        (payload) => {
+          console.log('Realtime update received from Supabase:', payload);
+          fetchDashboardData();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Supabase Realtime Status:', status);
+      });
+
+    // Fallback Poller: checks DB every 3s so the page NEVER gets stuck
+    const interval = setInterval(() => {
+      fetchDashboardData();
+    }, 3000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, []);
+
+  async function fetchDashboardData() {
+    // 1. Fetch live settings
+    const { data: dbSettings } = await supabase.from('investor_settings').select('*').eq('id', 1).single();
+    if (dbSettings) {
+      const loadedSettings = {
+        stages: (dbSettings.allowed_stages || []).map((s: string) => DB_TO_UI_STAGE[s] || s),
+        geographies: (dbSettings.allowed_regions || []).map((r: string) => DB_TO_UI_GEO[r] || r),
+        coreSectors: dbSettings.core_sectors || "",
+        excludedSectors: dbSettings.excluded_sectors || "",
+        founderArchetypes: dbSettings.founder_archetypes || [],
+        benchmarkCompanies: dbSettings.benchmark_companies || ""
+      };
+      setSettings(loadedSettings);
+      setTempSettings(loadedSettings);
+    } else {
       setIsFirstTime(true);
       setIsModalOpen(true);
-    } else {
-      try {
-        const parsed = JSON.parse(saved);
-        const merged = { ...defaultCriteria, ...parsed };
-
-        if (!Array.isArray(merged.stages)) merged.stages = defaultCriteria.stages;
-        if (!Array.isArray(merged.geographies)) merged.geographies = defaultCriteria.geographies;
-        if (!Array.isArray(merged.founderArchetypes)) merged.founderArchetypes = defaultCriteria.founderArchetypes;
-
-        setSettings(merged);
-        setTempSettings(merged);
-      } catch (e) {
-        console.error("Settings parse error, falling back to defaults", e);
-        setIsFirstTime(true);
-        setIsModalOpen(true);
-      }
     }
-  }, []);
+
+    // 2. Fetch leads from Supabase and map to UI schema
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('score', { ascending: false, nullsFirst: false });
+
+    if (profilesData) {
+      const mappedLeads = profilesData.map(db => ({
+        id: db.id,
+        contact: { full_name: db.namn, location: db.country || "Global" },
+        startup: { name: db.companystate || db.namn, stage: db.stage || "Unknown", market_vertical: db.slush_industry || "Tech", raised: "N/A" },
+        match_score: db.score || 0,
+        status: db.status || 'pending',
+        proposed_time: db.meeting_time || "Nov 30, 14:00 - 14:30",
+        linkedin_url: db.linkedin_url,
+        slush_url: `https://platform.slush.org/meetings/${db.id}`,
+        linkedin_analysis: db.reasoning || (db.score === null ? "Evaluating data via Gemini Model..." : "No analysis provided."),
+        verdict: db.verdict || (db.score === null ? "Pending Eval" : "Evaluated"),
+        pitch: db.slush_bio || ""
+      }));
+      setLeads(mappedLeads);
+      if (!selectedLeadId && mappedLeads.length > 0) setSelectedLeadId(mappedLeads[0].id);
+    }
+  }
 
   const selectedLead = leads.find((l) => l.id === selectedLeadId);
 
-  const handleAction = (id: string, action: "accepted" | "declined") => {
-    setLeads(leads.map(lead => lead.id === id ? { ...lead, status: action } : lead));
+  // Generate Google Calendar Link
+  const generateGCalLink = (lead: any) => {
+    const start = lead.proposed_time.includes("Nov") ? new Date("2026-11-20T10:00:00Z") : new Date();
+    const end = new Date(start.getTime() + 30 * 60000);
+    const formatTime = (date: Date) => date.toISOString().replace(/-|:|\.\d+/g, '');
+    
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: `Slush Meeting: ${lead.startup.name} & VC`,
+      details: `Meeting accepted via FounderRank.\n\nBio: ${lead.pitch}\nLinkedIn: ${lead.linkedin_url}`,
+      location: 'Slush Meeting Area, Messukeskus, Helsinki',
+      dates: `${formatTime(start)}/${formatTime(end)}`
+    });
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
   };
 
-  const handleSaveSettings = () => {
+  const handleAction = async (id: string, action: "accepted" | "declined") => {
+    setLeads(leads.map(lead => lead.id === id ? { ...lead, status: action } : lead));
+    
+    // Update status in Supabase
+    await supabase.from('profiles').update({ status: action }).eq('id', id);
+
+    // If accepted, pop open the GCal invite
+    if (action === "accepted") {
+      const lead = leads.find(l => l.id === id);
+      if (lead) window.open(generateGCalLink(lead), '_blank');
+    }
+  };
+
+  const handleSaveSettings = async () => {
     setSettings(tempSettings);
-    localStorage.setItem("vc_slush_criteria_v4", JSON.stringify(tempSettings));
     setIsModalOpen(false);
+
+    // Save to investor_settings
+    await supabase.from('investor_settings').upsert({
+      id: 1,
+      allowed_stages: tempSettings.stages.map(s => UI_TO_DB_STAGE[s] || s),
+      allowed_regions: tempSettings.geographies.map(g => UI_TO_DB_GEO[g] || g),
+      core_sectors: tempSettings.coreSectors,
+      excluded_sectors: tempSettings.excludedSectors,
+      founder_archetypes: tempSettings.founderArchetypes,
+      benchmark_companies: tempSettings.benchmarkCompanies
+    });
 
     if (!isFirstTime) {
       setIsReranking(true);
-      setTimeout(() => {
-        setIsReranking(false);
-      }, 3000);
+      
+      // Reset non-accepted candidates back to pending
+      await supabase
+        .from('profiles')
+        .update({ score: null, verdict: null, reasoning: null, status: 'pending' })
+        .neq('status', 'accepted');
+
+      // Instantly refresh UI state
+      await fetchDashboardData();
+
+      setTimeout(() => setIsReranking(false), 2000);
     } else {
       setIsFirstTime(false);
+      await fetchDashboardData();
     }
   };
 
@@ -143,6 +227,7 @@ export default function SlushTriageDashboard() {
 
   // Helper for score color logic
   const getScoreColor = (score: number) => {
+    if (score === 0) return "text-zinc-500";
     if (score >= 65) return "text-emerald-400";
     if (score >= 40) return "text-white";
     return "text-rose-500";
@@ -196,7 +281,7 @@ export default function SlushTriageDashboard() {
                   <div className="flex justify-between items-start mb-1.5">
                     <h3 className="font-bold text-lg tracking-tight">{lead.startup.name}</h3>
                     <span className={`text-sm font-black tracking-tighter flex items-center ${getScoreColor(lead.match_score)}`}>
-                  {lead.match_score} <span className="text-zinc-600 text-xs ml-0.5">/100</span>
+                  {lead.match_score > 0 ? lead.match_score : '--'} <span className="text-zinc-600 text-xs ml-0.5">/100</span>
                 </span>
                   </div>
                   <p className="text-sm text-zinc-500 font-medium">{lead.contact.full_name} <span className="text-zinc-700 mx-1">•</span> {lead.startup.stage}</p>
@@ -279,7 +364,7 @@ export default function SlushTriageDashboard() {
                       AI Synthesis
                     </h3>
                     <span className={`text-2xl font-black tracking-tighter ${getScoreColor(selectedLead.match_score)}`}>
-                  {selectedLead.match_score} <span className="text-zinc-600 text-sm font-normal tracking-normal">/100</span>
+                  {selectedLead.match_score > 0 ? selectedLead.match_score : '--'} <span className="text-zinc-600 text-sm font-normal tracking-normal">/100</span>
                 </span>
                   </div>
 
@@ -300,7 +385,7 @@ export default function SlushTriageDashboard() {
                         Verdict
                       </h4>
                       <div className="flex items-center space-x-4 bg-black p-4 rounded-sm border border-zinc-800/80 w-max">
-                        {selectedLead.match_score >= 50 ? (
+                        {selectedLead.match_score >= 50 || selectedLead.verdict === "Must Meet" ? (
                             <>
                               <div className="bg-emerald-500/10 p-2 rounded-full border border-emerald-500/20">
                                 <Check className="text-emerald-500" size={24} strokeWidth={3} />

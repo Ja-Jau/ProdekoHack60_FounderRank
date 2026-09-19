@@ -37,7 +37,7 @@ async function callGeminiWithRetry(prompt: string, maxRetries = 5) {
     try {
       console.log(`Sending data to Gemini... (Attempt ${attempt}/${maxRetries})`);
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash', contents: prompt,
+        model: 'gemini-3.1-flash-lite', contents: prompt,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -126,11 +126,35 @@ async function processInboundRequests() {
         : "General high-pedigree tech operators";
 
       const prompt = `
-        You are a VC Associate at Slush. Evaluate this founder based on their application and LinkedIn profile.
-        Application Bio/Message: "${candidate.slush_bio}"
-        LinkedIn Summary: ${JSON.stringify(compactProfile)}
-        
-        Score them 0-100 based on founder pedigree (past startups, top tech companies) and relevance to a tech VC.
+        ou are a VC evaluating Linkedin profiles and Slush meeting request messages
+
+        ### INVESTOR CRITERIA
+        - Target Stages: ${filters.allowedStages.join(', ')}
+        - Core Sectors: ${filters.coreSectors}
+        - Excluded Sectors: ${filters.excludedSectors}
+        - Preferred Founder Archetypes:
+        ${preferredArchetypesText}
+
+        ### CANDIDATE DATA
+        - Name: ${candidate.namn}
+        - Stage: ${candidate.stage || candidate.companystate || 'Unknown'}
+        - Message: "${candidate.message || candidate.slush_bio || 'No message provided'}"
+        - LinkedIn Profile:
+        ${JSON.stringify(compactProfile, null, 2)}
+
+        ### EXECUTION RULES
+        1. Evaluate the provided Founder Profile against the Investor Criteria and calculate score from 0-100.
+        2. Draft the linkedin_analysis. This must be exactly 1 to 2 concise, executive sentences. If available in the LinkedIn Data, specifically name the founder's former employers, key roles, or academic institutions. Assess their fit with the mandate. IF THE LINKEDIN DATA IS EMPTY OR MISSING, DO NOT INVENT OR HALLUCINATE EMPLOYERS. Justify the score based only on the Original Message. Do NOT use generic filler words.
+        3. Determine the verdict. This must be EXACTLY one of the following("Must Meet", "High Priority", "Maybe", "Reject").
+
+        ### REQUIRED OUTPUT FORMAT
+        You must respond with ONLY a valid JSON object matching this exact schema. Do not include markdown formatting, code blocks, or conversational text outside the JSON.
+
+        {
+          "score": <integer between 0 and 100>,
+          "reasoning": "<string, max 2 sentences>",
+          "verdict": "<string, 1-2 words>"
+        }
       `;
 
 

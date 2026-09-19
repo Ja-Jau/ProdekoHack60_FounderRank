@@ -197,38 +197,32 @@ export default function SlushTriageDashboard() {
     selectedLead = visibleLeads[0];
   }
 
-  // Calendar ICS Generator
-  const downloadICS = (lead: any) => {
-    const icsContent = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "BEGIN:VEVENT",
-      `SUMMARY:Slush Meeting: ${lead.startup.name} x VC`,
-      `DESCRIPTION:Matchmaking meeting with ${lead.contact.full_name} (${lead.startup.name}).\\n\\nPitch: ${lead.pitch}`,
-      "DTSTART:20261130T140000Z",
-      "DTEND:20261130T141500Z",
-      "LOCATION:Slush Matchmaking Area",
-      "END:VEVENT",
-      "END:VCALENDAR"
-    ].join("\r\n");
+  // Generate Google Calendar Link
+  const openGCal = (lead: any) => {
+    // Defaulting to the week of Slush 2026 (Nov 18-19)
+    const start = new Date("2026-11-18T14:00:00Z");
+    const end = new Date(start.getTime() + 15 * 60000); // 15 min meeting
+    
+    const formatTime = (date: Date) => date.toISOString().replace(/-|:|\.\d+/g, '');
+    
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: `Slush Meeting: ${lead.startup.name} x VC`,
+      details: `Matchmaking meeting with ${lead.contact.full_name} (${lead.startup.name}).\n\nPitch: ${lead.pitch}`,
+      location: 'Slush Matchmaking Area, Messukeskus, Helsinki',
+      dates: `${formatTime(start)}/${formatTime(end)}`
+    });
 
-    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `${lead.startup.name.replace(/\s+/g, '_')}_Slush_Meeting.ics`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank');
   };
 
   const handleAction = async (id: string, action: "accepted" | "declined") => {
-    // 1. Instantly generate the calendar event if accepted
+    // 1. Instantly open Google Calendar if accepted
     if (action === "accepted") {
       const acceptedLead = leads.find(l => l.id === id);
-      if (acceptedLead) downloadICS(acceptedLead);
+      if (acceptedLead) openGCal(acceptedLead);
     }
-
+    
     // 2. Update UI & Supabase
     setLeads(leads.map(lead => lead.id === id ? { ...lead, status: action } : lead));
     await supabase.from('profiles').update({ status: action }).eq('id', id);

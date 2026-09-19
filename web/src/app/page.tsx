@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 
 // --- INLINE ICONS ---
-// Used to prevent missing export errors from varying lucide-react versions
 const LinkedinIcon = ({ size = 24, className = "" }) => (
     <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
@@ -86,7 +85,7 @@ export default function SlushTriageDashboard() {
   const [settings, setSettings] = useState<QuestionnaireSettings>(defaultCriteria);
   const [tempSettings, setTempSettings] = useState<QuestionnaireSettings>(defaultCriteria);
 
-  // Robust localStorage parsing with deep-merge fallback to prevent crashes
+  // Robust localStorage parsing with deep-merge fallback
   useEffect(() => {
     const saved = localStorage.getItem("vc_slush_criteria_v3");
     if (!saved) {
@@ -140,6 +139,13 @@ export default function SlushTriageDashboard() {
     setTempSettings({ ...tempSettings, [key]: updated });
   };
 
+  // Helper for score color logic
+  const getScoreColor = (score: number) => {
+    if (score >= 65) return "text-emerald-400";
+    if (score >= 40) return "text-white";
+    return "text-rose-500";
+  };
+
   return (
       <div className="flex h-screen bg-black font-sans text-zinc-100 selection:bg-rose-500 selection:text-white">
 
@@ -187,9 +193,7 @@ export default function SlushTriageDashboard() {
                 >
                   <div className="flex justify-between items-start mb-1.5">
                     <h3 className="font-bold text-lg tracking-tight">{lead.startup.name}</h3>
-                    <span className={`text-sm font-black tracking-tighter flex items-center ${
-                        lead.match_score >= 70 ? "text-emerald-400" : lead.match_score >= 50 ? "text-yellow-400" : "text-rose-500"
-                    }`}>
+                    <span className={`text-sm font-black tracking-tighter flex items-center ${getScoreColor(lead.match_score)}`}>
                   {lead.match_score} <span className="text-zinc-600 text-xs ml-0.5">/100</span>
                 </span>
                   </div>
@@ -269,10 +273,10 @@ export default function SlushTriageDashboard() {
                 <div className="bg-zinc-900/30 backdrop-blur-md rounded-sm border border-zinc-800 overflow-hidden mb-8">
                   <div className="bg-zinc-950 px-6 py-4 flex justify-between items-center border-b border-zinc-800">
                     <h3 className="text-white font-bold uppercase tracking-widest flex items-center text-sm">
-                      <TrendingUp size={18} className="mr-2 text-rose-500" />
+                      <Sparkles size={18} className="mr-2 text-zinc-500" />
                       AI Synthesis
                     </h3>
-                    <span className="text-white text-2xl font-black tracking-tighter">
+                    <span className={`text-2xl font-black tracking-tighter ${getScoreColor(selectedLead.match_score)}`}>
                   {selectedLead.match_score} <span className="text-zinc-600 text-sm font-normal tracking-normal">/100</span>
                 </span>
                   </div>
@@ -318,7 +322,7 @@ export default function SlushTriageDashboard() {
                   </div>
                 </div>
 
-                {/* Raw Pitch Context (Moved to bottom) */}
+                {/* Raw Pitch Context */}
                 <div className="bg-zinc-900/20 rounded-sm border border-zinc-800/50 p-6">
                   <h4 className="text-xs font-black text-zinc-600 uppercase tracking-widest mb-4 flex items-center">
                     <Clock size={16} className="text-zinc-700 mr-2" /> Raw Slush Inbound Pitch

@@ -126,66 +126,14 @@ async function processInboundRequests() {
         : "General high-pedigree tech operators";
 
       const prompt = `
-        You are a Principal at a top-tier European venture capital fund evaluating inbound meeting requests for Slush Helsinki.
-        Evaluate this founder strictly against our investment mandate and assign an objective score from 0 to 100.
+        You are a VC Associate at Slush. Evaluate this founder based on their application and LinkedIn profile.
+        Application Bio/Message: "${candidate.slush_bio}"
+        LinkedIn Summary: ${JSON.stringify(compactProfile)}
         
-        ==================================================
-        1. FUND INVESTMENT MANDATE
-        ==================================================
-        - Target Stages: ${filters.allowedStages.join(', ') || 'Any'}
-        - Target Verticals (Positive bias): ${filters.coreSectors || 'General B2B Tech / Software'}
-        - Excluded Verticals (STRICT PASS): ${filters.excludedSectors || 'None'}
-        - Preferred Founder Archetypes:
-        ${preferredArchetypesText}
-        - Benchmark Portfolio Companies (Ideal comps): ${filters.benchmarkCompanies || 'High-growth B2B software companies'}
-        
-        ==================================================
-        2. CANDIDATE PROFILE
-        ==================================================
-        - Founder Name: ${candidate.namn}
-        - Self-Reported Industry: ${candidate.slush_industry || 'Not specified'}
-        - Stage: ${candidate.stage || candidate.companystate || 'Unknown'}
-        - Short Bio: "${candidate.slush_bio || 'None provided'}"
-        - ORIGINAL INBOUND MESSAGE: "${candidate.message || 'No pitch provided'}"
-        - LinkedIn Data:
-        ${JSON.stringify(compactProfile, null, 2)}
-        
-        ==================================================
-        3. SCORING RUBRIC (Max 100 Points)
-        ==================================================
-        1. THESIS & SECTOR FIT (0 to 35 Points):
-           - Strong alignment with Target Verticals or Comps to Benchmark Companies: 25-35 pts
-           - Neutral tech software in an adjacent market: 15-24 pts
-           - Off-mandate: 0-10 pts
-           *CRITICAL OVERRIDE*: If the startup falls under Excluded Verticals (${filters.excludedSectors}), immediately cap the TOTAL score at 20 and force verdict to "Pass".
-        
-        2. FOUNDER PEDIGREE & ARCHETYPE (0 to 40 Points):
-           - Direct match with Preferred Archetypes (e.g. ex-Staff Eng, unicorn scaleup lead, exited founder): 30-40 pts
-           - Decent tech or corporate background (consulting, agency, mid-level): 15-29 pts
-           - Junior, non-technical, or irrelevant pedigree: 0-14 pts
-        
-        3. INBOUND MESSAGE & TRACTION SIGNAL (0 to 25 Points):
-           - Strong Original Inbound Message with clear metrics (e.g., ARR, growth, top pilots, strong university): 18-25 pts
-           - Standard generic message without concrete numbers: 10-17 pts
-           - Empty, low-effort, or buzzword-heavy message: 0-9 pts
-        
-        ==================================================
-        4. VERDICT THRESHOLDS
-        ==================================================
-        - 80 to 100: "Must Meet" (Outstanding pedigree, clear thesis fit)
-        - 50 to 79:  "Maybe" (Promising signals or good sector, but pedigree or traction is unproven)
-        - 0 to 49:   "Pass" (Off-mandate, excluded vertical, or unconvincing pedigree)
-        
-        ==================================================
-        5. OUTPUT REQUIREMENTS
-        ==================================================
-        Return a JSON object adhering to the schema:
-        - score: Integer (0-100)
-        - verdict: "Must Meet" | "Maybe" | "Pass"
-        - reasoning: Exactly 1 to 2 concise, executive sentences. Specifically name the founder's former employer/school, assess their fit with the mandate, and justify the score based on their LinkedIn and Original Message.
-        `;
+        Score them 0-100 based on founder pedigree (past startups, top tech companies) and relevance to a tech VC.
+      `;
 
-        
+
 
       const analysis = await callGeminiWithRetry(prompt);
 

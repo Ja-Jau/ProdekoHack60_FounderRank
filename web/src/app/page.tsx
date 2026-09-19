@@ -14,7 +14,9 @@ import {
   Filter,
   Calendar,
   MessageSquare,
-  UserSearch
+  UserSearch,
+  PlusCircle,
+  XCircle
 } from "lucide-react";
 
 // --- INLINE ICONS ---
@@ -87,7 +89,7 @@ export default function SlushTriageDashboard() {
 
   // Robust localStorage parsing with deep-merge fallback
   useEffect(() => {
-    const saved = localStorage.getItem("vc_slush_criteria_v3");
+    const saved = localStorage.getItem("vc_slush_criteria_v4");
     if (!saved) {
       setIsFirstTime(true);
       setIsModalOpen(true);
@@ -118,7 +120,7 @@ export default function SlushTriageDashboard() {
 
   const handleSaveSettings = () => {
     setSettings(tempSettings);
-    localStorage.setItem("vc_slush_criteria_v3", JSON.stringify(tempSettings));
+    localStorage.setItem("vc_slush_criteria_v4", JSON.stringify(tempSettings));
     setIsModalOpen(false);
 
     if (!isFirstTime) {
@@ -391,7 +393,7 @@ export default function SlushTriageDashboard() {
                                   onClick={() => toggleArrayItem("stages", stage)}
                                   className={`px-4 py-2 rounded-sm text-xs font-bold uppercase tracking-wider transition-all ${
                                       active
-                                          ? "bg-rose-600 text-white shadow-[0_0_10px_rgba(225,29,72,0.3)]"
+                                          ? "bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.2)]"
                                           : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:bg-zinc-800 hover:text-white"
                                   }`}
                               >
@@ -417,7 +419,7 @@ export default function SlushTriageDashboard() {
                                   onClick={() => toggleArrayItem("geographies", geo)}
                                   className={`px-4 py-2 rounded-sm text-xs font-bold uppercase tracking-wider transition-all ${
                                       active
-                                          ? "bg-rose-600 text-white shadow-[0_0_10px_rgba(225,29,72,0.3)]"
+                                          ? "bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.2)]"
                                           : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:bg-zinc-800 hover:text-white"
                                   }`}
                               >
@@ -439,7 +441,8 @@ export default function SlushTriageDashboard() {
 
                       {/* Core Focus Verticals */}
                       <div>
-                        <label className="font-bold text-white uppercase tracking-wide block mb-2">
+                        <label className="font-bold text-white uppercase tracking-wide flex items-center mb-2">
+                          <PlusCircle size={16} className="text-emerald-500 mr-2" />
                           Core Verticals (Positive Score Bias)
                         </label>
                         <p className="text-xs text-zinc-500 mb-3 uppercase tracking-wider">
@@ -456,7 +459,8 @@ export default function SlushTriageDashboard() {
 
                       {/* Disqualified Verticals */}
                       <div>
-                        <label className="font-bold text-white uppercase tracking-wide block mb-2">
+                        <label className="font-bold text-white uppercase tracking-wide flex items-center mb-2">
+                          <XCircle size={16} className="text-rose-500 mr-2" />
                           Excluded Sectors (Auto-Flag / Low Score)
                         </label>
                         <p className="text-xs text-zinc-500 mb-3 uppercase tracking-wider">

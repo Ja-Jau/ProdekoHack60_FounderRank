@@ -18,7 +18,7 @@ import {
   UserSearch,
   PlusCircle,
   XCircle,
-  HelpCircle // Added for the mid-tier verdict icon
+  HelpCircle
 } from "lucide-react";
 
 // --- INLINE ICONS ---
@@ -124,7 +124,40 @@ export default function SlushTriageDashboard() {
         bio: db.slush_bio || "",
         pitch: db.message || "No original message provided by the founder."
       }));
-      setLeads(mappedLeads);
+
+      // Fallback mock leads if DB is empty for UI demonstration
+      if (mappedLeads.length === 0) {
+        setLeads([
+          {
+            id: "req_slush_4412",
+            contact: { full_name: "Marta Lindqvist", location: "Stockholm, Sweden" },
+            startup: { name: "FlowLog", stage: "Seed", market_vertical: "Developer Tools", raised: "$650k" },
+            match_score: 88,
+            status: "pending",
+            proposed_time: "Nov 30, 14:00 - 14:15",
+            linkedin_url: "https://linkedin.com/in/martalindqvist",
+            slush_url: "https://platform.slush.org/meetings/4412",
+            linkedin_analysis: "Marta previously served as a Staff Engineer at Spotify scaling edge microservices and holds an M.Sc. in Computer Science.",
+            verdict: "High Priority",
+            pitch: "Hi! We saw your focus on developer platforms. We're an ex-Spotify engineering team scaling FlowLog past $25k MRR. Would love to grab 15 mins at Slush to share our seed deck."
+          },
+          {
+            id: "req_slush_4413",
+            contact: { full_name: "Johannes Virtanen", location: "Helsinki, Finland" },
+            startup: { name: "RetailNode", stage: "Series A", market_vertical: "D2C / E-commerce", raised: "$2.1M" },
+            match_score: 34,
+            status: "pending",
+            proposed_time: "Dec 1, 10:30 - 10:45",
+            linkedin_url: "https://linkedin.com/in/johannesv",
+            slush_url: "https://platform.slush.org/meetings/4413",
+            linkedin_analysis: "Johannes has a background in digital marketing and consumer retail consulting, with no immediate technical co-founders listed.",
+            verdict: "Reject",
+            pitch: "Looking to connect with investors for our Series A expansion into the UK market."
+          }
+        ]);
+      } else {
+        setLeads(mappedLeads);
+      }
     }
   };
 
@@ -582,7 +615,7 @@ export default function SlushTriageDashboard() {
                           Excluded Sectors (Auto-Flag / Low Score)
                         </label>
                         <p className="text-xs text-zinc-500 mb-3 uppercase tracking-wider">
-                          Provide a comma-separated list of automatic pass sectors.
+                          Provide a comma-separated list of automatic reject sectors.
                         </p>
                         <input
                             type="text"

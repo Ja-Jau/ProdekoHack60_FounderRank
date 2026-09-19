@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   status TEXT DEFAULT 'pending', -- Tracks 'pending', 'accepted', 'declined'
   
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  companystate TEXT
+  companystate TEXT,
+  company_name TEXT
 );
 
 -- ==========================================

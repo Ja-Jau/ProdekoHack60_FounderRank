@@ -37,7 +37,7 @@ async function callGeminiWithRetry(prompt: string, maxRetries = 5) {
     try {
       console.log(`Sending data to Gemini... (Attempt ${attempt}/${maxRetries})`);
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash', contents: prompt,
+        model: 'gemini-3.5-flash', contents: prompt,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -115,21 +115,75 @@ async function processInboundRequests() {
         education: Array.isArray(linkedInProfile.education) ? linkedInProfile.education.slice(0, 3).map((e:any) => ({ school: e.schoolName })) : []
       };
 
+      // Format Archetypes cleanly for the prompt
+      const archetypeGuide: Record<string, string> = {
+        technical_depth: "Technical depth (CS degree, Staff/Principal Eng, CTO background)",
+        scaleup_alumni: "Top scaleup alumni (ex-Spotify, Wolt, Supercell, Klarna, Stripe, etc.)",
+        repeat_founder: "Repeat founder with prior venture experience or exits",
+        domain_operator: "Deep domain operator (5+ years senior operator in specific vertical)"
+      };
+      const preferredArchetypesText = filters.founderArchetypes.length > 0
+        ? filters.founderArchetypes.map((id: string) => `- ${archetypeGuide[id] || id}`).join('\n')
+        : "General high-pedigree tech operators";
+
       const prompt = `
-        You are a VC Associate at Slush. Evaluate this founder.
+        You are a Principal at a top-tier European venture capital fund evaluating inbound meeting requests for Slush Helsinki.
+        Evaluate this founder strictly against our investment mandate and assign an objective score from 0 to 100.
         
-        **INVESTMENT MANDATE (Follow Strictly):**
-        - Core Focus Verticals (Reward these): ${filters.coreSectors}
-        - Excluded Sectors (Severely penalize these): ${filters.excludedSectors}
-        - Preferred Founder Traits: ${filters.founderArchetypes.join(', ')}
-        - Benchmark Companies to compare against: ${filters.benchmarkCompanies}
+        ==================================================
+        1. FUND INVESTMENT MANDATE
+        ==================================================
+        - Target Stages: ${filters.allowedStages.join(', ') || 'Any'}
+        - Target Verticals (Positive bias): ${filters.coreSectors || 'General B2B Tech / Software'}
+        - Excluded Verticals (STRICT PASS): ${filters.excludedSectors || 'None'}
+        - Preferred Founder Archetypes:
+        ${preferredArchetypesText}
+        - Benchmark Portfolio Companies (Ideal comps): ${filters.benchmarkCompanies || 'High-growth B2B software companies'}
         
-        **CANDIDATE DATA:**
-        Application Bio: "${candidate.slush_bio}"
-        LinkedIn Summary: ${JSON.stringify(compactProfile)}
+        ==================================================
+        2. CANDIDATE PROFILE
+        ==================================================
+        - Founder Name: ${candidate.namn}
+        - Self-Reported Industry: ${candidate.slush_industry || 'Not specified'}
+        - Stage: ${candidate.stage || candidate.companystate || 'Unknown'}
+        - Slush Meeting Pitch / Bio: "${candidate.slush_bio || 'No pitch provided'}"
+        - LinkedIn Data:
+        ${JSON.stringify(compactProfile, null, 2)}
         
-        Score them 0-100 based on founder pedigree and mandate alignment. Provide a strict JSON response.
-      `;
+        ==================================================
+        3. SCORING RUBRIC (Max 100 Points)
+        ==================================================
+        1. THESIS & SECTOR FIT (0 to 35 Points):
+           - Strong alignment with Target Verticals or Comps to Benchmark Companies: 25-35 pts
+           - Neutral tech software in an adjacent market: 15-24 pts
+           - Off-mandate: 0-10 pts
+           *CRITICAL OVERRIDE*: If the startup falls under Excluded Verticals (${filters.excludedSectors}), immediately cap the TOTAL score at 20 and force verdict to "Pass".
+        
+        2. FOUNDER PEDIGREE & ARCHETYPE (0 to 40 Points):
+           - Direct match with Preferred Archetypes (e.g. ex-Staff Eng, unicorn scaleup lead, exited founder): 30-40 pts
+           - Decent tech or corporate background (consulting, agency, mid-level): 15-29 pts
+           - Junior, non-technical, or irrelevant pedigree: 0-14 pts
+        
+        3. SIGNAL & TRACTION (0 to 25 Points):
+           - Strong Slush pitch with clear metrics (e.g., ARR, growth, top pilots, strong university like Aalto/KTH): 18-25 pts
+           - Standard pitch without concrete numbers: 10-17 pts
+           - Empty, low-effort, or buzzword-heavy pitch: 0-9 pts
+        
+        ==================================================
+        4. VERDICT THRESHOLDS
+        ==================================================
+        - 80 to 100: "Must Meet" (Outstanding pedigree, clear thesis fit)
+        - 50 to 79:  "Maybe" (Promising signals or good sector, but pedigree or traction is unproven)
+        - 0 to 49:   "Pass" (Off-mandate, excluded vertical, or unconvincing pedigree)
+        
+        ==================================================
+        5. OUTPUT REQUIREMENTS
+        ==================================================
+        Return a JSON object adhering to the schema:
+        - score: Integer (0-100)
+        - verdict: "Must Meet" | "Maybe" | "Pass"
+        - reasoning: Exactly 1 to 2 concise, executive sentences. Specifically name the founder's former employer/school, assess their fit with the mandate, and justify the score. Do not use generic filler words.
+        `;
 
       const analysis = await callGeminiWithRetry(prompt);
 

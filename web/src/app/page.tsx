@@ -78,7 +78,7 @@ export default function SlushTriageDashboard() {
   const [settings, setSettings] = useState<QuestionnaireSettings>(defaultCriteria);
   const [tempSettings, setTempSettings] = useState<QuestionnaireSettings>(defaultCriteria);
 
-  // 1. Fetch live settings strictly ONCE (prevents modal from resetting)
+  // 1. Fetch live settings strictly ONCE
   const fetchSettings = async () => {
     const { data: dbSettings, error: settingsErr } = await supabase.from('investor_settings').select('*').eq('id', 1).single();
     if (settingsErr) console.error("Settings Fetch Error:", settingsErr);
@@ -100,7 +100,7 @@ export default function SlushTriageDashboard() {
     }
   };
 
-  // 2. Fetch profiles repeatedly without touching settings
+  // 2. Fetch profiles repeatedly
   const fetchProfiles = async () => {
     const { data: profilesData, error: profilesErr } = await supabase
         .from('profiles')
@@ -110,22 +110,30 @@ export default function SlushTriageDashboard() {
     if (profilesErr) console.error("Profiles Fetch Error:", profilesErr);
 
     if (profilesData) {
-      const mappedLeads = profilesData.map(db => ({
-        id: db.id,
-        contact: { full_name: db.namn, location: db.country || "Global" },
-        startup: { name: db.companyname || db.namn, stage: db.stage || db.companystate || "Unknown", market_vertical: db.slush_industry || "Tech", raised: "N/A" },
-        match_score: db.score !== null ? db.score : null,
-        status: db.status || 'pending',
-        proposed_time: db.meeting_time || "Nov 30, 14:00 - 14:30",
-        linkedin_url: db.linkedin_url,
-        slush_url: `https://platform.slush.org/meetings/${db.id}`,
-        linkedin_analysis: db.reasoning || (db.score === null ? "Evaluating data via Gemini Model..." : "No analysis provided."),
-        verdict: db.verdict || (db.score === null ? "Pending Eval" : "Evaluated"),
-        bio: db.slush_bio || "",
-        pitch: db.message || "No original message provided by the founder."
-      }));
+      const mappedLeads = profilesData.map(db => {
+        // Intercept old "Pass" verdicts from the database and override them for the UI
+        let dbVerdict = db.verdict || (db.score === null ? "Pending Eval" : "Evaluated");
+        if (dbVerdict.toLowerCase().includes("pass")) {
+          dbVerdict = "Reject";
+        }
 
-      // Fallback mock leads if DB is empty for UI demonstration
+        return {
+          id: db.id,
+          contact: { full_name: db.namn, location: db.country || "Global" },
+          startup: { name: db.companyname || db.namn, stage: db.stage || db.companystate || "Unknown", market_vertical: db.slush_industry || "Tech", raised: "N/A" },
+          match_score: db.score !== null ? db.score : null,
+          status: db.status || 'pending',
+          proposed_time: db.meeting_time || "Nov 30, 14:00 - 14:30",
+          linkedin_url: db.linkedin_url,
+          slush_url: `https://platform.slush.org/meetings/${db.id}`,
+          linkedin_analysis: db.reasoning || (db.score === null ? "Evaluating data via Gemini Model..." : "No analysis provided."),
+          verdict: dbVerdict,
+          bio: db.slush_bio || "",
+          pitch: db.message || "No original message provided by the founder."
+        };
+      });
+
+      // Fallback mock leads if DB is empty
       if (mappedLeads.length === 0) {
         setLeads([
           {
@@ -161,7 +169,6 @@ export default function SlushTriageDashboard() {
     }
   };
 
-  // Setup Realtime & Poller
   useEffect(() => {
     fetchSettings();
     fetchProfiles();
@@ -183,16 +190,13 @@ export default function SlushTriageDashboard() {
     };
   }, []);
 
-  // Filter ONLY leads that have been scored AND are not declined
   const visibleLeads = leads.filter(l => l.match_score !== null && l.status !== 'declined');
 
-  // Safe selection logic
   let selectedLead = visibleLeads.find((l) => l.id === selectedLeadId);
   if (!selectedLead && visibleLeads.length > 0) {
     selectedLead = visibleLeads[0];
   }
 
-  // Calendar ICS Generator
   const downloadICS = (lead: any) => {
     const icsContent = [
       "BEGIN:VCALENDAR",
@@ -218,13 +222,11 @@ export default function SlushTriageDashboard() {
   };
 
   const handleAction = async (id: string, action: "accepted" | "declined") => {
-    // 1. Instantly generate the calendar event if accepted
     if (action === "accepted") {
       const acceptedLead = leads.find(l => l.id === id);
       if (acceptedLead) downloadICS(acceptedLead);
     }
 
-    // 2. Update UI & Supabase
     setLeads(leads.map(lead => lead.id === id ? { ...lead, status: action } : lead));
     await supabase.from('profiles').update({ status: action }).eq('id', id);
   };
@@ -233,7 +235,6 @@ export default function SlushTriageDashboard() {
     setSettings(tempSettings);
     setIsModalOpen(false);
 
-    // Write to Supabase so Worker can read it
     await supabase.from('investor_settings').upsert({
       id: 1,
       allowed_stages: tempSettings.stages.map(s => UI_TO_DB_STAGE[s] || s),
@@ -246,14 +247,12 @@ export default function SlushTriageDashboard() {
 
     if (!isFirstTime) {
       setIsReranking(true);
-      // Reset everything back to pending and null scores UNLESS they are already accepted.
       await supabase
           .from('profiles')
           .update({ score: null, verdict: null, reasoning: null, status: 'pending' })
           .neq('status', 'accepted');
 
       await fetchProfiles();
-
       setTimeout(() => setIsReranking(false), 3000);
     } else {
       setIsFirstTime(false);
@@ -416,7 +415,7 @@ export default function SlushTriageDashboard() {
                   <div className="bg-zinc-950 px-6 py-4 flex justify-between items-center border-b border-zinc-800">
                     <h3 className="font-bold uppercase tracking-widest flex items-center text-sm">
                       <Sparkles size={18} className="mr-2 text-purple-500" />
-                      <span className="bg-gradient-to-r from-purple-400 to-fuchsia-500 bg-clip-text text-transparent">
+                      <span className="text-white">
                     Automated evaluation
                   </span>
                     </h3>

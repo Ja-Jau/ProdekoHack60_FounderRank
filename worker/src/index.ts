@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { ApifyClient } from 'apify-client';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
+import { resolveRegion, normalizeStage } from './thesisGate';
 
 dotenv.config();
 
@@ -9,12 +10,21 @@ const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SE
 const apify = new ApifyClient({ token: process.env.APIFY_API_TOKEN });
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// HELPER: Send Telegram alert for high-priority founders
+async function getActiveFilters() {
+  const { data } = await supabase
+    .from('investor_settings')
+    .select('allowed_regions, allowed_stages')
+    .eq('id', 1)
+    .single();
+
+  return {
+    allowedRegions: data?.allowed_regions || ['nordic_baltic'],
+    allowedStages: data?.allowed_stages || ['seed', 'series_a'],
+  };
+}
+
 async function sendTelegramAlert(candidate: any, analysis: any) {
-  if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) {
-    console.warn('Telegram token or chat ID not set in .env. Skipping notification.');
-    return;
-  }
+  if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) return;
 
   const message = `🚨 *High-Priority Founder Alert!*\n\n` +
     `👤 *${candidate.namn}* (Score: *${analysis.score}/100*)\n` +
@@ -32,7 +42,6 @@ async function sendTelegramAlert(candidate: any, analysis: any) {
         parse_mode: 'Markdown',
       }),
     });
-    console.log(`Telegram alert sent for ${candidate.namn}!`);
   } catch (err) {
     console.error('Failed to send Telegram alert:', err);
   }
@@ -62,7 +71,7 @@ async function callGeminiWithRetry(prompt: string, maxRetries = 5) {
       const isTransient = err.status === 503 || err.status === 429 || err?.message?.includes('503') || err?.message?.includes('429');
       if (isTransient && attempt < maxRetries) {
         const delayMs = attempt * 5000; 
-        console.warn(`\nGemini API busy. Retrying in ${delayMs / 1000}s... (Attempt ${attempt}/${maxRetries})`);
+        console.warn(`Gemini busy. Retrying in ${delayMs / 1000}s...`);
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       } else {
         throw err;
@@ -72,24 +81,46 @@ async function callGeminiWithRetry(prompt: string, maxRetries = 5) {
 }
 
 async function processInboundRequests() {
-  console.log('Fetching pending requests from Supabase...');
-  
+  const { allowedRegions, allowedStages } = await getActiveFilters();
+
   const { data: candidates, error } = await supabase
     .from('profiles') 
     .select('*')
     .is('score', null)
     .limit(20);
 
-  if (error || !candidates || candidates.length === 0) {
-    console.log('No pending candidates found.');
-    return;
-  }
+  if (error || !candidates || candidates.length === 0) return;
 
   for (const candidate of candidates) {
-    console.log(`\nProcessing ${candidate.namn}...`);
+    console.log(`\nEvaluating filters for: ${candidate.namn}`);
+    const candidateRegion = resolveRegion(candidate.country || candidate.slush_country);
+    const candidateStage = normalizeStage(candidate.stage || candidate.company_stage);
+    const regionMatch = allowedRegions.includes(candidateRegion);
+    const stageMatch = allowedStages.length === 0 || allowedStages.includes(candidateStage);
 
+    if (!regionMatch || !stageMatch) {
+      const reasons: string[] = [];
+      if (!regionMatch) reasons.push(`Region mismatch (${candidateRegion} not in [${allowedRegions.join(', ')}])`);
+      if (!stageMatch) reasons.push(`Stage mismatch (${candidateStage} not in [${allowedStages.join(', ')}])`);
+
+      console.log(`Dropping ${candidate.namn} before Apify scrape: ${reasons.join(', ')}`);
+
+      // Update Supabase to avoid infinite polling loops
+      await supabase
+        .from('profiles')
+        .update({
+          score: 0,
+          verdict: 'Pass',
+          reasoning: `Auto-filtered: ${reasons.join(' & ')}`,
+        })
+        .eq('id', candidate.id);
+
+      continue; // Skip Apify & Gemini entirely
+    }
+
+    // 3. Proceed with Apify LinkedIn Scraper
     try {
-      console.log(`Scraping LinkedIn: ${candidate.linkedin_url}`);
+      console.log(`Qualified. Scraping LinkedIn: ${candidate.linkedin_url}`);
       const run = await apify.actor('LpVuK3Zozwuipa5bp').call({
         urls: [candidate.linkedin_url]
       });
@@ -101,8 +132,6 @@ async function processInboundRequests() {
         throw new Error('No LinkedIn data returned from Apify.');
       }
 
-      console.log('Sending data to Gemini for scoring...');
-      
       const compactProfile = {
         headline: linkedInProfile.headline || linkedInProfile.title || '',
         summary: linkedInProfile.summary || linkedInProfile.about || '',
@@ -137,7 +166,6 @@ async function processInboundRequests() {
 
       const analysis = await callGeminiWithRetry(prompt);
 
-      console.log(`Saving score: ${analysis.score}/100`);
       await supabase
         .from('profiles')
         .update({
@@ -147,13 +175,11 @@ async function processInboundRequests() {
         })
         .eq('id', candidate.id);
 
-      // --- SEND TELEGRAM ALERT FOR HIGH-SCORE PROFILES ---
       if (analysis.score >= 80 || analysis.verdict === 'Must Meet') {
         await sendTelegramAlert(candidate, analysis);
       }
 
-      console.log(`Successfully processed ${candidate.namn}.`);
-
+      console.log(`Successfully scored ${candidate.namn} (${analysis.score}/100)`);
     } catch (err) {
       console.error(`Failed to process ${candidate.namn}:`, err);
     }
@@ -166,9 +192,8 @@ async function startWorker() {
     try {
       await processInboundRequests();
     } catch (err) {
-      console.error('Worker loop encountered an error:', err);
+      console.error('Worker loop error:', err);
     }
-    // Sleep for 10 seconds before checking Supabase again
     await new Promise((resolve) => setTimeout(resolve, 10000));
   }
 }

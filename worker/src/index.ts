@@ -9,11 +9,40 @@ const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SE
 const apify = new ApifyClient({ token: process.env.APIFY_API_TOKEN });
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+// HELPER: Send Telegram alert for high-priority founders
+async function sendTelegramAlert(candidate: any, analysis: any) {
+  if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) {
+    console.warn('Telegram token or chat ID not set in .env. Skipping notification.');
+    return;
+  }
+
+  const message = `🚨 *High-Priority Founder Alert!*\n\n` +
+    `👤 *${candidate.namn}* (Score: *${analysis.score}/100*)\n` +
+    `🎯 *Verdict:* ${analysis.verdict}\n` +
+    `💡 *Reasoning:* ${analysis.reasoning}\n\n` +
+    `🔗 [View LinkedIn](${candidate.linkedin_url})`;
+
+  try {
+    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: process.env.TELEGRAM_CHAT_ID,
+        text: message,
+        parse_mode: 'Markdown',
+      }),
+    });
+    console.log(`Telegram alert sent for ${candidate.namn}!`);
+  } catch (err) {
+    console.error('Failed to send Telegram alert:', err);
+  }
+}
+
 async function callGeminiWithRetry(prompt: string, maxRetries = 5) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash', // The latest and fastest free model available
+        model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -74,7 +103,6 @@ async function processInboundRequests() {
 
       console.log('Sending data to Gemini for scoring...');
       
-      // Extract ONLY relevant text fields to keep the prompt lightweight
       const compactProfile = {
         headline: linkedInProfile.headline || linkedInProfile.title || '',
         summary: linkedInProfile.summary || linkedInProfile.about || '',
@@ -94,7 +122,6 @@ async function processInboundRequests() {
         skills: Array.isArray(linkedInProfile.skills)
           ? linkedInProfile.skills.slice(0, 10).map((s: any) => typeof s === 'string' ? s : s.name)
           : [],
-        // Safely extract up to 3 recent text posts (ignores images/metadata)
         posts: Array.isArray(linkedInProfile.activity) 
           ? linkedInProfile.activity.slice(0, 3).map((post: any) => post.text || post.title).filter(Boolean)
           : []
@@ -120,6 +147,11 @@ async function processInboundRequests() {
         })
         .eq('id', candidate.id);
 
+      // --- SEND TELEGRAM ALERT FOR HIGH-SCORE PROFILES ---
+      if (analysis.score >= 80 || analysis.verdict === 'Must Meet') {
+        await sendTelegramAlert(candidate, analysis);
+      }
+
       console.log(`Successfully processed ${candidate.namn}.`);
 
     } catch (err) {
@@ -128,4 +160,17 @@ async function processInboundRequests() {
   }
 }
 
-processInboundRequests();
+async function startWorker() {
+  console.log('Worker listening for unscored candidates...');
+  while (true) {
+    try {
+      await processInboundRequests();
+    } catch (err) {
+      console.error('Worker loop encountered an error:', err);
+    }
+    // Sleep for 10 seconds before checking Supabase again
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+  }
+}
+
+startWorker();
